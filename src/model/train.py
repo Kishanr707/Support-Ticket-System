@@ -13,10 +13,19 @@ the classifier later (e.g. LinearSVC) doesn't change anything downstream.
 Stopword removal happens here, in the vectorizer (stop_words='english'),
 not in clean.py — see clean.py's docstring for why.
 
-The __main__ block also applies training-only data augmentation (see
-augment.py) to partially boost the rarest priority classes before
-fitting. This is applied AFTER the train/test split, never before, to
-avoid leaking near-duplicate text across the split.
+The __main__ block combines the real training split with a ChatGPT-
+generated synthetic dataset (see combine.py) before fitting. This
+replaced the earlier training-only-augmentation approach (augment.py)
+after evaluation showed the synthetic data gives a much larger, honest
+improvement on real held-out tickets (macro-F1 0.20 -> 0.38) — see
+README for the full comparison. augment.py is kept in the codebase and
+still works standalone; it's just no longer used in the default
+training run.
+
+CRITICAL: the real train/test split happens FIRST, and synthetic data
+is only ever added to the training side. The test split stays 100%
+real so evaluation numbers reflect genuine real-world performance, not
+the synthetic data's own (inflated, templated) distribution.
 """
 
 import joblib
@@ -103,13 +112,21 @@ def save_model(pipeline: Pipeline, path: str = "models/priority_model.joblib") -
 
 
 if __name__ == "__main__":
-    from src.model.augment import balance_with_augmentation
+    from src.preprocessing.combine import combine_for_training
 
     df = pd.read_csv("data/tickets_clean.csv")
     X_train, X_test, y_train, y_test = split_data(df)
 
-    # Boost the rarest classes with augmented copies (training split only)
-    X_train, y_train = balance_with_augmentation(X_train, y_train, target_ratio=0.5)
+    # Combine real training data with the synthetic dataset (training
+    # side only — X_test/y_test stay 100% real, untouched).
+    # ticket_id 1004298 is a known exact duplicate of a real ticket
+    # found in the synthetic file and is excluded.
+    X_train, y_train = combine_for_training(
+        X_train,
+        y_train,
+        synthetic_path="data/tickets_synthetic.csv",
+        exclude_ticket_ids={1004298},
+    )
 
     pipeline = train(X_train, y_train)
     save_model(pipeline)
