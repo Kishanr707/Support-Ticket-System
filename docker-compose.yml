@@ -1,0 +1,45 @@
+# docker-compose.yml
+#
+# Right now this only defines the backend. The frontend service is
+# stubbed in below, commented out, ready for your friend to fill in
+# once his own repo has a Dockerfile.
+#
+# IMPORTANT NETWORKING NOTE (read before enabling the frontend service):
+# When both services run together via docker-compose, they're on the
+# same internal Docker network and must address each other by SERVICE
+# NAME, not "localhost". A frontend container would call
+# "http://backend:8000/predict", NOT "http://localhost:8000/predict".
+# "localhost" inside a container refers to that container itself, not
+# its sibling — this is the most common mistake when composing two
+# containers together for the first time.
+#
+# (This only applies once the frontend is ALSO running inside this
+# compose setup. If the frontend is just run normally with `npm start`
+# on your host machine while this backend runs in Docker, it keeps
+# using http://localhost:8000 as before — nothing changes for that
+# setup.)
+
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ticket-priority-backend
+    ports:
+      - "8000:8000"
+
+  # --- Frontend service (fill in once the frontend has its own Dockerfile) ---
+  #
+  # frontend:
+  #   build:
+  #     context: ../frontend-repo-name   # path to the friend's repo, relative to this file
+  #     dockerfile: Dockerfile
+  #   container_name: ticket-priority-frontend
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - REACT_APP_API_URL=http://backend:8000   # note: "backend", not "localhost"
+  #   depends_on:
+  #     - backend
