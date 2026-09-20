@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 data/issues.csv
 data/sample_utterances.csv
+tickets.db
