@@ -15,6 +15,7 @@ Run locally with:
 Then visit http://127.0.0.1:8000/docs for interactive API docs.
 """
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -27,10 +28,18 @@ from src.db.database import get_db, init_db
 from src.db.models import Ticket
 from src.model.predict import predict
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
 app = FastAPI(
     title="Support Ticket Priority API",
     description="Predicts ticket priority (Blocker/Highest/High/Medium/Low) from ticket text.",
     version="0.2.0",
+    lifespan=lifespan,
 )
 
 # CORS: without this, a browser blocks requests from a frontend running
@@ -43,11 +52,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
 
 
 class TicketRequest(BaseModel):
