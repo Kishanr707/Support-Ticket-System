@@ -1,7 +1,10 @@
 pandas
 numpy
-scikit-learn
+scikit-learn==1.9.0
 nltk
 jupyter
 joblib
 pytest
+fastapi
+uvicorn[standard]
+httpx
