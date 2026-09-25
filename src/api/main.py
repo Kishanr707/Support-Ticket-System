@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from src.db.database import get_db, init_db
 from src.db.models import Ticket
-from src.model.predict import predict
+from src.model.predict import predict_with_confidence, needs_human_review
 
 
 @asynccontextmanager
@@ -60,6 +60,8 @@ class TicketRequest(BaseModel):
 
 class PredictionResponse(BaseModel):
     priority: str
+    confidence: float
+    needs_human_review: bool
     ticket_id: int
 
 
@@ -67,6 +69,8 @@ class TicketOut(BaseModel):
     id: int
     ticket_text: str
     predicted_priority: str
+    confidence: float
+    needs_human_review: bool
     confirmed_priority: Optional[str] = None
     corrected_by: Optional[str] = None
     created_at: datetime
@@ -95,19 +99,31 @@ def predict_priority(request: TicketRequest, db: Session = Depends(get_db)):
     Response body: {"priority": "High", "ticket_id": 42}
     """
     try:
-        priority = predict(request.ticket_text)
+        priority, confidence = predict_with_confidence(request.ticket_text)
+        review_required = needs_human_review(priority, confidence)
     except FileNotFoundError:
         raise HTTPException(
             status_code=500,
             detail="Model file not found. Run `python -m src.model.train` first.",
         )
 
-    ticket = Ticket(ticket_text=request.ticket_text, predicted_priority=priority)
+    ticket = Ticket(
+    ticket_text=request.ticket_text,
+    predicted_priority=priority,
+    confidence=confidence,
+    needs_human_review=review_required,
+    )
     db.add(ticket)
     db.commit()
     db.refresh(ticket)
 
-    return PredictionResponse(priority=priority, ticket_id=ticket.id)
+    return PredictionResponse(
+    priority=priority,
+    confidence=confidence,
+    needs_human_review=review_required,
+    ticket_id=ticket.id,
+    )    
+
 
 
 @app.get("/tickets", response_model=List[TicketOut])

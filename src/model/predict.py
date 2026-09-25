@@ -41,20 +41,42 @@ def load_model(model_path: str = DEFAULT_MODEL_PATH):
     return joblib.load(model_path)
 
 
-def predict(ticket_text: str, model_path: str = DEFAULT_MODEL_PATH) -> str:
-    """Predict the priority of a single ticket from raw text.
-
-    Args:
-        ticket_text: raw, unprocessed ticket text (e.g. straight from a
-            web form or API request)
-        model_path: path to the saved joblib pipeline
+def predict_with_confidence(
+    ticket_text: str, model_path: str = DEFAULT_MODEL_PATH
+) -> tuple[str, float]:
+    """Predict priority and return the model's confidence.
 
     Returns:
-        Predicted priority label, e.g. "High"
+        Tuple of (predicted priority, confidence).
     """
     model = load_model(model_path)
     cleaned = clean_text(ticket_text)
-    return model.predict([cleaned])[0]
+
+    probabilities = model.predict_proba([cleaned])[0]
+    predicted_index = probabilities.argmax()
+
+    priority = model.classes_[predicted_index]
+    confidence = float(probabilities[predicted_index])
+
+    return priority, confidence
+
+def needs_human_review(priority: str, confidence: float) -> bool:
+    """Determine whether a prediction should be reviewed by a human.
+
+    Blocker and Low predictions require stronger evidence because these
+    classes performed poorly on the real held-out evaluation set.
+    """
+
+    if priority in {"Blocker", "Low"} and confidence < 0.60:
+        return True
+
+    return False
+
+
+def predict(ticket_text: str, model_path: str = DEFAULT_MODEL_PATH) -> str:
+    """Predict the priority of a single ticket from raw text."""
+    priority, _ = predict_with_confidence(ticket_text, model_path)
+    return priority
 
 
 if __name__ == "__main__":

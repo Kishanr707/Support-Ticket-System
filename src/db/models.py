@@ -1,21 +1,16 @@
 """
 src/db/models.py
 
-One table for now: every prediction made through /predict gets logged
-here, with room for a human to later submit the corrected priority via
-POST /tickets/{id}/correct.
+Database model for support tickets.
 
-IMPORTANT for the future retraining pipeline: always train on
-confirmed_priority, never on predicted_priority. Training on the
-model's own predictions would reinforce whatever it's already getting
-wrong instead of correcting it. confirmed_priority being NULL means
-"no human has reviewed this ticket yet" — such rows should be excluded
-from any retraining dataset.
+Every prediction made through /predict is logged here.
+Human-confirmed corrections are stored separately and should be used
+for future retraining.
 """
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text
 
 from src.db.database import Base
 
@@ -25,12 +20,19 @@ class Ticket(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     ticket_text = Column(Text, nullable=False)
-    predicted_priority = Column(String(20), nullable=False)
 
-    # Filled in later by a human via POST /tickets/{id}/correct.
-    # NULL means not yet reviewed.
+    # ML prediction
+    predicted_priority = Column(String(20), nullable=False)
+    confidence = Column(Float, nullable=False)
+    needs_human_review = Column(Integer, nullable=False, default=0)
+
+    # Human feedback
+    # NULL means the ticket has not been reviewed yet.
     confirmed_priority = Column(String(20), nullable=True)
     corrected_by = Column(String(100), nullable=True)
     corrected_at = Column(DateTime, nullable=True)
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+    )
