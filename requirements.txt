@@ -6,6 +6,6 @@ jupyter
 joblib
 pytest
 fastapi
-uvicorn[standard]
+uvicorn[standard]==0.35.0
 httpx
 sqlalchemy

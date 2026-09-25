@@ -63,9 +63,12 @@ def predict_with_confidence(
 def needs_human_review(priority: str, confidence: float) -> bool:
     """Determine whether a prediction should be reviewed by a human.
 
-    Blocker and Low predictions require stronger evidence because these
+    Very low-confidence predictions are always sent for human review.
+    Blocker and Low predictions use a stricter threshold because these
     classes performed poorly on the real held-out evaluation set.
     """
+    if confidence < 0.40:
+        return True
 
     if priority in {"Blocker", "Low"} and confidence < 0.60:
         return True
@@ -77,6 +80,24 @@ def predict(ticket_text: str, model_path: str = DEFAULT_MODEL_PATH) -> str:
     """Predict the priority of a single ticket from raw text."""
     priority, _ = predict_with_confidence(ticket_text, model_path)
     return priority
+
+def test_needs_human_review_for_very_low_confidence():
+    assert needs_human_review("Medium", 0.256) is True
+    assert needs_human_review("High", 0.30) is True
+
+
+def test_needs_human_review_for_uncertain_rare_classes():
+    assert needs_human_review("Blocker", 0.425) is True
+    assert needs_human_review("Low", 0.470) is True
+
+
+def test_does_not_require_review_for_confident_rare_class():
+    assert needs_human_review("Blocker", 0.649) is False
+
+
+def test_common_classes_do_not_require_review_when_confident():
+    assert needs_human_review("High", 0.484) is False
+    assert needs_human_review("Medium", 0.597) is False
 
 
 if __name__ == "__main__":
