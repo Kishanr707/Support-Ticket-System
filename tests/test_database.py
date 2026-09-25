@@ -11,12 +11,26 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.api.main import app
 from src.db.database import Base, get_db
 
-# In-memory SQLite, fresh for the whole test module
-engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+# In-memory SQLite, fresh for the whole test module.
+#
+# StaticPool is required here: without it, SQLAlchemy opens a NEW
+# connection (and therefore a NEW, empty in-memory database) each time
+# one is checked out from the pool, since ":memory:" databases aren't
+# shared between connections by default. That caused "no such table:
+# tickets" — the table got created on one connection, then a request
+# used a different, empty one. StaticPool forces every checkout to
+# reuse the same single connection, so the table created by
+# Base.metadata.create_all() is the one everything else actually sees.
+engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
