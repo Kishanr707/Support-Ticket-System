@@ -187,7 +187,13 @@ def test_prediction_metadata_is_stored():
 
     tickets = response.json()
 
-    assert len(tickets) == 1
+    ticket = next(
+    ticket for ticket in tickets
+    if ticket["id"] == prediction["ticket_id"]
+    )
+
+    assert ticket["confidence"] is not None
+    assert "needs_human_review" in ticket
 
     ticket = tickets[0]
 
