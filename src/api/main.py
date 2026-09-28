@@ -21,7 +21,7 @@ from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from src.db.database import get_db, init_db
@@ -80,8 +80,33 @@ class TicketOut(BaseModel):
 
 
 class CorrectionRequest(BaseModel):
-    confirmed_priority: str = Field(..., description="The human-confirmed correct priority")
-    corrected_by: str = Field(default="admin", description="Who made the correction")
+    confirmed_priority: str = Field(
+        ...,
+        description="The human-confirmed correct priority",
+    )
+    corrected_by: str = Field(
+        default="admin",
+        description="Who made the correction",
+    )
+
+    @field_validator("confirmed_priority")
+    @classmethod
+    def validate_priority(cls, value: str) -> str:
+        allowed_priorities = {
+            "Blocker",
+            "Highest",
+            "High",
+            "Medium",
+            "Low",
+        }
+
+        if value not in allowed_priorities:
+            raise ValueError(
+                "confirmed_priority must be one of: "
+                "Blocker, Highest, High, Medium, Low"
+            )
+
+        return value
 
 
 @app.get("/health")
@@ -132,6 +157,18 @@ def list_tickets(db: Session = Depends(get_db)):
     admin correction dashboard would display."""
     return db.query(Ticket).order_by(Ticket.created_at.desc()).all()
 
+@app.get("/tickets/review", response_model=List[TicketOut])
+def list_tickets_for_review(db: Session = Depends(get_db)):
+    """List tickets that require human review and have not been corrected."""
+    return (
+        db.query(Ticket)
+        .filter(
+            Ticket.needs_human_review == 1,
+            Ticket.confirmed_priority.is_(None),
+        )
+        .order_by(Ticket.created_at.desc())
+        .all()
+    )
 
 @app.post("/tickets/{ticket_id}/correct", response_model=TicketOut)
 def correct_ticket(ticket_id: int, correction: CorrectionRequest, db: Session = Depends(get_db)):
